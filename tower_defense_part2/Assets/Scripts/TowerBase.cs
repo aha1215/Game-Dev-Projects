@@ -5,15 +5,25 @@ using UnityEngine;
 
 public class TowerBase : MonoBehaviour
 {
-    private bool _used;
+    public bool used;
     public GameObject towerPrefab;
     public GameObject gameManager;
     private GameManager _manager;
 
+    public GameObject towers;
+    private Transform _towerRoot;
+
     private void Start()
     {
-        _used = false;
+        GameManager.onGameOver += ResetTowerUsed;
+        _towerRoot = towers.GetComponent<Transform>();
+        used = false;
         _manager = gameManager.GetComponent<GameManager>();
+    }
+
+    void ResetTowerUsed()
+    {
+        used = false;
     }
 
     private void OnMouseOver()
@@ -22,7 +32,7 @@ public class TowerBase : MonoBehaviour
         {
             Ray ray = Camera.main.ScreenPointToRay(Input.mousePosition); 
             
-            if (Physics.Raycast(ray, out var hit) && _used == false)
+            if (Physics.Raycast(ray, out var hit) && used == false)
             {
                 if (_manager.GetTreasuryAmount() < _manager.towerCost)
                 {
@@ -30,10 +40,11 @@ public class TowerBase : MonoBehaviour
                 }
                 else
                 {
-                    GameObject instance = Instantiate(towerPrefab);
+                    GameObject instance = Instantiate(towerPrefab, _towerRoot);
                     var pos = transform.position;
                     instance.transform.position = new Vector3(pos.x, pos.y + 2f, pos.z);
-                    _used = true;
+                    instance.GetComponent<Tower>().currentTowerBase = transform.gameObject;
+                    used = true;
                     _manager.TreasurySubtract(_manager.towerCost);
                 }
             }

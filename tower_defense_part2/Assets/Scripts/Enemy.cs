@@ -1,3 +1,5 @@
+using System;
+using System.Collections;
 using UnityEngine;
 using UnityEngine.AI;
 
@@ -21,12 +23,27 @@ public class Enemy: MonoBehaviour
     
     public GameObject healthBar;
     private HealthBar _healthBarScript;
+
+    private AudioSource _audioSource;
+    public AudioClip deathClip;
+
+    private GameManager _gameManager;
     
-    //-----------------------------------------------------------------------------
+    public GameObject projectile;
+    private bool _shoot = false;
+    public Transform closestTower;
+    public float waitToShootSeconds = 4;
+    private Transform _shootOffset;
+
     void Start()
     {
+        _shootOffset = transform.GetChild(0).GetComponent<Transform>();
+        _gameManager = FindObjectOfType<GameManager>();
+        // Death sound
+        _audioSource = GetComponent<AudioSource>();
+
         // Create instance of health bar prefab 
-        healthBar = Instantiate(healthBar);
+        healthBar = Instantiate(healthBar, transform);
         _healthBarScript = healthBar.transform.GetChild(0).GetComponent<HealthBar>();
 
         myAgent = GetComponent<NavMeshAgent>();
@@ -38,8 +55,7 @@ public class Enemy: MonoBehaviour
         transform.LookAt(GetNavmeshPosition(WaypointList[1].transform.position));
         TargetNextWaypoint();
     }
-
-    //-----------------------------------------------------------------------------
+    
     void Update()
     {
         // update health bar position
@@ -68,11 +84,37 @@ public class Enemy: MonoBehaviour
             // Debug.Break();
             TargetNextWaypoint();
         }
+        
+        // Enemy reached the end, game over
+        if (index == WaypointList.Length - 1 && Vector3.Dot(directionToTarget, newDirectionToTarget) < 0f && _gameManager.enemyMadeItToEnd == false)
+        {
+            _gameManager.enemyMadeItToEnd = true;
+        }
+        if (!_shoot && closestTower != null) 
+        {
+            StartCoroutine(EnemyShoot());
+        }
+
+        if (closestTower != null)
+        {
+            transform.LookAt(closestTower.position);
+        }
 
         UpdateTestDamage();
     }
-
-    //-----------------------------------------------------------------------------
+    private IEnumerator EnemyShoot()
+    {
+        _shoot = true;
+        yield return new WaitForSeconds(waitToShootSeconds);
+        GameObject proj = Instantiate(projectile, _shootOffset.position, transform.rotation);
+        proj.GetComponent<Renderer>().material.color = Color.red;
+        if (proj != null)
+        {
+            Destroy(proj, 2f);
+        }
+        _shoot = false;
+    }
+    
     void UpdateTestDamage()
     {
         if (Input.GetMouseButtonDown(0) || Input.GetMouseButtonDown(1))
@@ -82,27 +124,36 @@ public class Enemy: MonoBehaviour
             {
                 if (hitInfo.collider.transform == transform)
                 {
-                    health -= 1;
-                    _healthBarScript.SetHealth(health);
-                    if (health <= 0)
-                    {
-                        OnEnemyDied?.Invoke(this);
-                        Destroy(gameObject);
-                        Destroy(healthBar);
-                    }
+                    UpdateHealth();
                 }
             }
         }
     }
 
-    //-----------------------------------------------------------------------------
+    private void OnTriggerEnter(Collider other)
+    {
+        if (other.GetComponent<Projectile>() != null && !other.CompareTag("enemyBullet"))
+        {
+            UpdateHealth();
+        }
+    }
+
+    void UpdateHealth()
+    {
+        health--;
+        _healthBarScript.SetHealth(health);
+        if (health <= 0)
+        {
+            StartCoroutine(EnemyDeath());
+        }
+    }
+    
     Vector3 GetNavmeshPosition(Vector3 samplePosition)
     {
         NavMesh.SamplePosition(samplePosition, out NavMeshHit hitInfo, 100, -1);
         return hitInfo.position;
     }
-
-    //-----------------------------------------------------------------------------
+    
     private void TargetNextWaypoint()
     {
         if (index < WaypointList.Length - 1)
@@ -113,5 +164,23 @@ public class Enemy: MonoBehaviour
 
             //Debug.Log($"Set Destination to point {index}");
         }
+    }
+
+    IEnumerator EnemyDeath()
+    {
+        _audioSource.clip = deathClip;
+        _audioSource.Play();
+        while (_audioSource.isPlaying)
+        {
+            yield return null;
+        }
+        OnEnemyDied?.Invoke(this);
+        EnemyDestroy();
+    }
+
+    void EnemyDestroy()
+    {
+        Destroy(healthBar);
+        Destroy(gameObject);
     }
 }

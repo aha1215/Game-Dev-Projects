@@ -6,6 +6,7 @@ TagManager:
   tags:
   - Fire
   - tower_marker
+  - enemyBullet
   layers:
   - Default
   - TransparentFX
